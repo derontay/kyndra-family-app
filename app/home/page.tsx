@@ -21,10 +21,28 @@ function getNextOccurrenceKey(value: string | null, now: Date) {
   return next.getTime();
 }
 
+function getCountdownLabel(value: string | null, now: Date) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  const month = parsed.getMonth();
+  const day = parsed.getDate();
+  const year = now.getFullYear();
+  const startOfToday = new Date(year, now.getMonth(), now.getDate());
+  const next = new Date(year, month, day);
+  if (next < startOfToday) next.setFullYear(year + 1);
+  const diffMs = next.getTime() - startOfToday.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays <= 0) return "Today";
+  if (diffDays === 1) return "Tomorrow";
+  return `In ${diffDays} days`;
+}
+
 export default function HomePage() {
   const [status, setStatus] = useState("Connecting to Supabase...");
   const [birthdays, setBirthdays] = useState<Birthday[]>([]);
   const [birthdaysStatus, setBirthdaysStatus] = useState("Loading birthdays...");
+  const now = new Date();
 
   useEffect(() => {
     (async () => {
@@ -48,7 +66,6 @@ export default function HomePage() {
       }
 
       const list = (data ?? []) as Birthday[];
-      const now = new Date();
       list.sort(
         (a, b) => getNextOccurrenceKey(a.birthdate, now) - getNextOccurrenceKey(b.birthdate, now)
       );
@@ -87,11 +104,16 @@ export default function HomePage() {
             {birthdays.map((birthday) => (
               <div
                 key={birthday.id}
-                className="flex items-center justify-between rounded-xl border border-[var(--border)] px-3 py-2"
+                className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] px-3 py-2"
               >
                 <div className="text-[14px] font-semibold">{birthday.name}</div>
-                <div className="text-[12px] text-[var(--muted)]">
-                  {formatDate(birthday.birthdate)}
+                <div className="flex flex-col items-end">
+                  <div className="text-[12px] text-[var(--muted)]">
+                    {formatDate(birthday.birthdate)}
+                  </div>
+                  <div className="text-[12px] text-[var(--muted)]">
+                    {getCountdownLabel(birthday.birthdate, now)}
+                  </div>
                 </div>
               </div>
             ))}

@@ -22,8 +22,26 @@ function getNextOccurrenceKey(value: string | null, now: Date) {
   return next.getTime();
 }
 
+function getCountdownLabel(value: string | null, now: Date) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  const month = parsed.getMonth();
+  const day = parsed.getDate();
+  const year = now.getFullYear();
+  const startOfToday = new Date(year, now.getMonth(), now.getDate());
+  const next = new Date(year, month, day);
+  if (next < startOfToday) next.setFullYear(year + 1);
+  const diffMs = next.getTime() - startOfToday.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays <= 0) return "Today";
+  if (diffDays === 1) return "Tomorrow";
+  return `In ${diffDays} days`;
+}
+
 export default function PeoplePage() {
   const supabase = useMemo(() => createClient(), []);
+  const now = new Date();
 
   const [birthdays, setBirthdays] = useState<Birthday[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,7 +79,6 @@ export default function PeoplePage() {
     }
 
     const list = (data ?? []) as Birthday[];
-    const now = new Date();
     list.sort(
       (a, b) => getNextOccurrenceKey(a.birthdate, now) - getNextOccurrenceKey(b.birthdate, now)
     );
@@ -187,6 +204,9 @@ export default function PeoplePage() {
                   <div className="text-[14px] font-semibold">{birthday.name}</div>
                   <div className="text-[12px] text-[var(--muted)]">
                     {formatDate(birthday.birthdate)}
+                  </div>
+                  <div className="text-[12px] text-[var(--muted)]">
+                    {getCountdownLabel(birthday.birthdate, now)}
                   </div>
                 </div>
                 <button
