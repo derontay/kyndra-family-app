@@ -10,6 +10,18 @@ type Birthday = {
   notes: string | null;
 };
 
+function getNextOccurrenceKey(value: string | null, now: Date) {
+  if (!value) return Number.MAX_SAFE_INTEGER;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return Number.MAX_SAFE_INTEGER;
+  const month = parsed.getMonth();
+  const day = parsed.getDate();
+  const year = now.getFullYear();
+  const thisYear = new Date(year, month, day);
+  const next = thisYear >= now ? thisYear : new Date(year + 1, month, day);
+  return next.getTime();
+}
+
 export default function PeoplePage() {
   const supabase = useMemo(() => createClient(), []);
 
@@ -47,7 +59,12 @@ export default function PeoplePage() {
       return;
     }
 
-    setBirthdays((data ?? []) as Birthday[]);
+    const list = (data ?? []) as Birthday[];
+    const now = new Date();
+    list.sort(
+      (a, b) => getNextOccurrenceKey(a.birthdate, now) - getNextOccurrenceKey(b.birthdate, now)
+    );
+    setBirthdays(list);
     setLoading(false);
   };
 
