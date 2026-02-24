@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 
 type Birthday = {
@@ -47,8 +48,11 @@ export default function HomePage() {
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase.auth.getSession();
-      if (error) setStatus("âŒ Supabase error: " + error.message);
-      else setStatus("âœ… Supabase connected. Session: " + (data.session ? "Active" : "None"));
+      if (error) setStatus("Ã¢ÂÅ’ Supabase error: " + error.message);
+      else
+        setStatus(
+          "Ã¢Å“â€¦ Supabase connected. Session: " + (data.session ? "Active" : "None")
+        );
     })();
   }, []);
 
@@ -85,8 +89,13 @@ export default function HomePage() {
     <div className="space-y-4">
       <div className="ky-card p-6">
         <div className="text-[12px] text-[var(--muted)]">Status</div>
-        <div className="mt-1 text-[20px] font-extrabold">Kyndra Sunrise ðŸŒ…</div>
+        <div className="mt-1 text-[20px] font-extrabold">Kyndra Sunrise Ã°Å¸Å’â€¦</div>
         <div className="mt-2 text-[14px] text-[var(--muted)]">{status}</div>
+        <div className="mt-4">
+          <Link className="ky-btn inline-flex" href="/feedback">
+            Feedback
+          </Link>
+        </div>
       </div>
 
       <div className="ky-card p-6">
