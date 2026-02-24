@@ -1,0 +1,79 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ----------------------------
+   KYNDRA "SUNRISE" SKIN
+   Luxury / Warm / Modern
+   Welcoming happy colors
+----------------------------- */
+
+:root {
+  --bg: #fbfaf7;        /* warm soft white */
+  --card: #ffffff;
+  --text: #161616;      /* charcoal */
+  --muted: #5c5c5c;
+
+  --primary: #0ea5a7;   /* teal */
+  --accent: #ff6b6b;    /* coral */
+  --gold: #f2c14e;      /* sunny gold */
+
+  --border: rgba(15, 23, 42, 0.10);
+  --shadow: 0 10px 30px rgba(15, 23, 42, 0.10);
+  --radius: 18px;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Cards */
+.ky-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+/* Chips */
+.ky-chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+/* Buttons */
+.ky-btn {
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-weight: 700;
+  border: 1px solid var(--border);
+  transition: all 0.2s ease;
+}
+
+.ky-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+}
+
+.ky-btn-primary {
+  background: linear-gradient(135deg, var(--primary), var(--gold));
+  color: #0b0b0b;
+  border: none;
+}
