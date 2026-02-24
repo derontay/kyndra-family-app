@@ -62,7 +62,10 @@ export default function CalendarPage() {
   const [error, setError] = useState<string>("");
   const now = new Date();
 
-  const { daysInMonth, startWeekday, label } = getMonthMeta();
+  const { year, monthIndex, daysInMonth, startWeekday, label } = getMonthMeta();
+  const today = new Date();
+  const isCurrentMonth = today.getFullYear() === year && today.getMonth() === monthIndex;
+  const todayDate = isCurrentMonth ? today.getDate() : -1;
   const totalCells = 42;
   const cells = Array.from({ length: totalCells }, (_, index) => {
     const dayNumber = index - startWeekday + 1;
@@ -125,15 +128,15 @@ export default function CalendarPage() {
   return (
     <div className="space-y-4">
       <div className="ky-card p-5">
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
             <div className="text-[12px] text-[var(--muted)]">Month</div>
             <div className="text-[18px] font-extrabold">{label}</div>
           </div>
           <div className="flex items-center gap-2">
-            <button className="ky-btn">Prev</button>
-            <button className="ky-btn ky-btn-primary">Today</button>
-            <button className="ky-btn">Next</button>
+            <button className="ky-btn px-3 py-1">Prev</button>
+            <button className="ky-btn ky-btn-primary px-3 py-1">Today</button>
+            <button className="ky-btn px-3 py-1">Next</button>
           </div>
         </div>
 
@@ -146,16 +149,19 @@ export default function CalendarPage() {
         </div>
 
         <div className="mt-2 grid grid-cols-7 gap-2">
-          {cells.map((day, index) => (
-            <div
-              key={`${day ?? "empty"}-${index}`}
-              className={`h-12 rounded-xl border border-[var(--border)] p-2 text-[12px] ${
-                day ? "bg-white/80 text-[var(--text)]" : "bg-white/40"
-              }`}
-            >
-              {day ? <div className="font-semibold">{day}</div> : null}
-            </div>
-          ))}
+          {cells.map((day, index) => {
+            const isToday = day && day === todayDate;
+            return (
+              <div
+                key={`${day ?? "empty"}-${index}`}
+                className={`flex h-12 items-start rounded-xl border p-2 text-[12px] ${
+                  day ? "bg-white/80 text-[var(--text)]" : "bg-white/40"
+                } ${isToday ? "border-[var(--primary)] bg-white" : "border-[var(--border)]"}`}
+              >
+                {day ? <div className="font-semibold">{day}</div> : null}
+              </div>
+            );
+          })}
         </div>
       </div>
 
