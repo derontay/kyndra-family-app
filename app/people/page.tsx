@@ -28,6 +28,7 @@ export default function PeoplePage() {
   const [birthdays, setBirthdays] = useState<Birthday[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [userId, setUserId] = useState<string>("");
 
@@ -133,6 +134,34 @@ export default function PeoplePage() {
     setSubmitting(false);
   };
 
+  const onDelete = async (birthday: Birthday) => {
+    if (!userId) {
+      setError("You need to sign in to delete birthdays.");
+      return;
+    }
+
+    const confirmed = window.confirm(`Delete ${birthday.name}?`);
+    if (!confirmed) return;
+
+    setError("");
+    setDeletingId(birthday.id);
+
+    const { error: deleteError } = await supabase
+      .from("birthdays")
+      .delete()
+      .eq("id", birthday.id)
+      .eq("user_id", userId);
+
+    if (deleteError) {
+      setError(deleteError.message);
+      setDeletingId("");
+      return;
+    }
+
+    await loadBirthdays(userId);
+    setDeletingId("");
+  };
+
   return (
     <div className="space-y-4">
       <div className="ky-card p-5">
@@ -152,12 +181,22 @@ export default function PeoplePage() {
             {birthdays.map((birthday) => (
               <div
                 key={birthday.id}
-                className="flex items-center justify-between rounded-xl border border-[var(--border)] px-3 py-2"
+                className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] px-3 py-2"
               >
-                <div className="text-[14px] font-semibold">{birthday.name}</div>
-                <div className="text-[12px] text-[var(--muted)]">
-                  {formatDate(birthday.birthdate)}
+                <div>
+                  <div className="text-[14px] font-semibold">{birthday.name}</div>
+                  <div className="text-[12px] text-[var(--muted)]">
+                    {formatDate(birthday.birthdate)}
+                  </div>
                 </div>
+                <button
+                  type="button"
+                  className="ky-btn text-[12px] px-3 py-1"
+                  onClick={() => onDelete(birthday)}
+                  disabled={deletingId === birthday.id}
+                >
+                  {deletingId === birthday.id ? "Deleting..." : "Delete"}
+                </button>
               </div>
             ))}
           </div>
