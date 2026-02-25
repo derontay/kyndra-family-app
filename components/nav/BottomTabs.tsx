@@ -1,14 +1,14 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const tabs = [
-  { href: "/home", label: "Home", icon: "🏠" },
-  { href: "/calendar", label: "Calendar", icon: "📅" },
-  { href: "/photos", label: "Photos", icon: "📸" },
-  { href: "/people", label: "People", icon: "👨‍👩‍👧" },
-  { href: "/spaces", label: "Spaces", icon: "🏡" },
+  { href: "/home", label: "Home", icon: "\u{1F3E0}" },
+  { href: "/calendar", label: "Calendar", icon: "\u{1F4C5}" },
+  { href: "/photos", label: "Photos", icon: "\u{1F4F8}" },
+  { href: "/people", label: "People", icon: "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}" },
+  { href: "/spaces", label: "Spaces", icon: "\u{1F3E1}" },
 ];
 
 export default function BottomTabs() {
