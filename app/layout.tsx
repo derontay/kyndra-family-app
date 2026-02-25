@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import TopBar from "@/components/nav/TopBar";
-import BottomTabs from "@/components/nav/BottomTabs";
+import BottomNav from "@/components/BottomNav";
 import { SpaceProvider } from "@/components/spaces/SpaceContext";
 
 export const metadata: Metadata = {
@@ -20,8 +20,10 @@ export default function RootLayout({
         <SpaceProvider>
           <div className="mx-auto flex min-h-screen max-w-md flex-col">
             <TopBar />
-            <main className="flex-1 px-4 pb-20 pt-3">{children}</main>
-            <BottomTabs />
+            <main className="flex-1 px-4 pb-24 pt-3 md:pb-6">
+              {children}
+            </main>
+            <BottomNav />
           </div>
         </SpaceProvider>
       </body>
