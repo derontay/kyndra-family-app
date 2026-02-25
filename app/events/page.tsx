@@ -5,6 +5,10 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabaseClient";
 import { deleteEvent, listEventsBySpace, type EventRecord } from "@/lib/events";
+import {
+  listEventRemindersBySpace,
+  type EventReminderRecord,
+} from "@/lib/eventReminders";
 import { useSpace } from "@/components/spaces/SpaceContext";
 
 export default function EventsPage() {
@@ -12,6 +16,9 @@ export default function EventsPage() {
   const { activeSpaceId, activeSpaceName } = useSpace();
 
   const [events, setEvents] = useState<EventRecord[]>([]);
+  const [reminderMinutesByEventId, setReminderMinutesByEventId] = useState<
+    Record<string, number>
+  >({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState("");
@@ -59,6 +66,19 @@ export default function EventsPage() {
       setEvents([]);
       setLoading(false);
       return;
+    }
+
+    const { data: reminderData, error: reminderError } =
+      await listEventRemindersBySpace(supabase, spaceId);
+    if (!reminderError) {
+      const map: Record<string, number> = {};
+      (reminderData ?? []).forEach((reminder) => {
+        const row = reminder as EventReminderRecord;
+        if (row?.event_id) {
+          map[row.event_id] = row.remind_minutes_before;
+        }
+      });
+      setReminderMinutesByEventId(map);
     }
 
     setEvents((data ?? []) as EventRecord[]);
@@ -137,6 +157,11 @@ export default function EventsPage() {
                   {event.description ? (
                     <div className="text-[12px] text-[var(--muted)]">
                       {event.description}
+                    </div>
+                  ) : null}
+                  {reminderMinutesByEventId[event.id] ? (
+                    <div className="text-[12px] text-[var(--muted)]">
+                      ⏰ {reminderMinutesByEventId[event.id]}m
                     </div>
                   ) : null}
                 </div>

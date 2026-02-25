@@ -10,6 +10,7 @@ type CookieToSet = {
 export async function createClient() {
   // Next 16 dynamic API can be sync or async depending on runtime.
   const cookieStore = await resolveCookieStore();
+  const cookieStoreAvailable = cookieStore !== null;
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,6 +24,7 @@ export async function createClient() {
         setAll(cookiesToSet: CookieToSet[]) {
           try {
             cookiesToSet.forEach(({ name, value, options }) => {
+              if (!cookieStoreAvailable) return;
               if (typeof cookieStore.set === "function") {
                 cookieStore.set(name, value, options);
                 return;
@@ -67,7 +69,7 @@ function readAllCookies(cookieStore: CookieStoreLike | null): { name: string; va
   }
 
   if (typeof cookieStore[Symbol.iterator] === "function") {
-    return Array.from(cookieStore);
+    return Array.from(cookieStore as Iterable<{ name: string; value: string }>);
   }
 
   // Fallback: no bulk access available

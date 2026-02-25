@@ -4,6 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { listEventsBySpace, type EventRecord } from "@/lib/events";
+import {
+  listEventRemindersBySpace,
+  type EventReminderRecord,
+} from "@/lib/eventReminders";
 import { useSpace } from "@/components/spaces/SpaceContext";
 
 type Birthday = {
@@ -48,6 +52,9 @@ export default function HomePage() {
   const [birthdaysStatus, setBirthdaysStatus] = useState("Loading birthdays...");
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [eventsStatus, setEventsStatus] = useState("Loading events...");
+  const [reminderMinutesByEventId, setReminderMinutesByEventId] = useState<
+    Record<string, number>
+  >({});
   const now = new Date();
 
   useEffect(() => {
@@ -96,6 +103,19 @@ export default function HomePage() {
         setEventsStatus("Events error: " + error.message);
         setEvents([]);
         return;
+      }
+
+      const { data: reminderData, error: reminderError } =
+        await listEventRemindersBySpace(supabase, activeSpaceId);
+      if (!reminderError) {
+        const map: Record<string, number> = {};
+        (reminderData ?? []).forEach((reminder) => {
+          const row = reminder as EventReminderRecord;
+          if (row?.event_id) {
+            map[row.event_id] = row.remind_minutes_before;
+          }
+        });
+        setReminderMinutesByEventId(map);
       }
 
       const list = (data ?? []) as EventRecord[];
@@ -199,9 +219,16 @@ export default function HomePage() {
                 key={event.id}
                 className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] px-3 py-2"
               >
-                <div className="text-[14px] font-semibold">{event.title}</div>
-                <div className="text-[12px] text-[var(--muted)]">
-                  {formatRange(event.starts_at, event.ends_at)}
+                <div>
+                  <div className="text-[14px] font-semibold">{event.title}</div>
+                  <div className="text-[12px] text-[var(--muted)]">
+                    {formatRange(event.starts_at, event.ends_at)}
+                  </div>
+                  {reminderMinutesByEventId[event.id] ? (
+                    <div className="text-[12px] text-[var(--muted)]">
+                      ⏰ {reminderMinutesByEventId[event.id]}m
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ))}

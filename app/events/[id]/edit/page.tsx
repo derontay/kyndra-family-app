@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
 import { deleteEvent, getEventById, updateEvent, type EventRecord } from "@/lib/events";
 import {
+  deleteEventReminderByEventId,
   upsertEventReminder,
   getEventReminderByEventId,
   type EventReminderRecord,
@@ -163,17 +164,21 @@ export default function EditEventPage() {
       return;
     }
 
-    const { error: reminderError } = await upsertEventReminder(
-      supabase,
-      {
-        event_id: eventId,
-        space_id: activeSpaceId,
-        remind_minutes_before: reminderMinutes,
-      }
-    );
+    const reminderResult =
+      reminderMinutes === 0
+        ? await deleteEventReminderByEventId(
+            supabase,
+            activeSpaceId,
+            eventId
+          )
+        : await upsertEventReminder(supabase, {
+            event_id: eventId,
+            space_id: activeSpaceId,
+            remind_minutes_before: reminderMinutes,
+          });
 
-    if (reminderError) {
-      setError(reminderError.message);
+    if (reminderResult.error) {
+      setError(reminderResult.error.message);
       setSaving(false);
       return;
     }
@@ -278,6 +283,7 @@ export default function EditEventPage() {
                 value={reminderMinutes}
                 onChange={(event) => setReminderMinutes(Number(event.target.value))}
               >
+                <option value={0}>None</option>
                 <option value={15}>15 minutes before</option>
                 <option value={30}>30 minutes before</option>
                 <option value={60}>60 minutes before</option>
