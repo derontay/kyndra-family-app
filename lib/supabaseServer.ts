@@ -41,15 +41,25 @@ export async function createClient() {
   );
 }
 
-async function resolveCookieStore() {
-  const maybeStore = cookies() as any;
-  if (maybeStore && typeof maybeStore.then === "function") {
-    return await maybeStore;
+type CookieStoreLike = {
+  getAll?: () => { name: string; value: string }[];
+  set?: (name: string, value: string, options?: CookieOptions) => void;
+  setAll?: (cookies: CookieToSet[]) => void;
+  [Symbol.iterator]?: () => Iterator<{ name: string; value: string }>;
+};
+
+async function resolveCookieStore(): Promise<CookieStoreLike | null> {
+  const maybeStore = cookies() as unknown;
+  if (
+    maybeStore &&
+    typeof (maybeStore as { then?: unknown }).then === "function"
+  ) {
+    return await (maybeStore as Promise<CookieStoreLike>);
   }
-  return maybeStore;
+  return (maybeStore as CookieStoreLike) ?? null;
 }
 
-function readAllCookies(cookieStore: any): { name: string; value: string }[] {
+function readAllCookies(cookieStore: CookieStoreLike | null): { name: string; value: string }[] {
   if (!cookieStore) return [];
 
   if (typeof cookieStore.getAll === "function") {

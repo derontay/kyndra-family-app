@@ -10,7 +10,7 @@ export default function FeedbackPage() {
         <div className="text-[12px] text-[var(--muted)]">Beta</div>
         <div className="mt-1 text-[20px] font-extrabold">Beta Feedback</div>
         <p className="mt-2 text-[14px] text-[var(--muted)]">
-          Tell us whatâ€™s working, whatâ€™s confusing, and what you want next.
+          Tell us what\u{2019}s working, what\u{2019}s confusing, and what you want next.
         </p>
 
         <div className="mt-4 space-y-2">

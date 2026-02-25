@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { listEventsBySpace, type EventRecord } from "@/lib/events";
+import { useSpace } from "@/components/spaces/SpaceContext";
 
 type Birthday = {
   id: string;
@@ -40,18 +42,21 @@ function getCountdownLabel(value: string | null, now: Date) {
 }
 
 export default function HomePage() {
+  const { activeSpaceId } = useSpace();
   const [status, setStatus] = useState("Connecting to Supabase...");
   const [birthdays, setBirthdays] = useState<Birthday[]>([]);
   const [birthdaysStatus, setBirthdaysStatus] = useState("Loading birthdays...");
+  const [events, setEvents] = useState<EventRecord[]>([]);
+  const [eventsStatus, setEventsStatus] = useState("Loading events...");
   const now = new Date();
 
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase.auth.getSession();
-      if (error) setStatus("Ã¢ÂÅ’ Supabase error: " + error.message);
+      if (error) setStatus("Supabase error: " + error.message);
       else
         setStatus(
-          "Ã¢Å“â€¦ Supabase connected. Session: " + (data.session ? "Active" : "None")
+          "Supabase connected. Session: " + (data.session ? "Active" : "None")
         );
     })();
   }, []);
@@ -78,6 +83,27 @@ export default function HomePage() {
     })();
   }, []);
 
+  useEffect(() => {
+    (async () => {
+      if (!activeSpaceId) {
+        setEvents([]);
+        setEventsStatus("Select a space to view events.");
+        return;
+      }
+
+      const { data, error } = await listEventsBySpace(supabase, activeSpaceId);
+      if (error) {
+        setEventsStatus("Events error: " + error.message);
+        setEvents([]);
+        return;
+      }
+
+      const list = (data ?? []) as EventRecord[];
+      setEvents(list.slice(0, 3));
+      setEventsStatus("");
+    })();
+  }, [activeSpaceId]);
+
   const formatDate = (value: string | null) => {
     if (!value) return "Date not set";
     const parsed = new Date(value);
@@ -85,11 +111,25 @@ export default function HomePage() {
     return parsed.toLocaleDateString();
   };
 
+  const formatDateTime = (value: string | null) => {
+    if (!value) return "Date not set";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "Date not set";
+    return parsed.toLocaleString();
+  };
+
+  const formatRange = (startsAt: string | null, endsAt: string | null) => {
+    if (!startsAt && !endsAt) return "Date not set";
+    if (startsAt && !endsAt) return formatDateTime(startsAt);
+    if (!startsAt && endsAt) return formatDateTime(endsAt);
+    return `${formatDateTime(startsAt)} – ${formatDateTime(endsAt)}`;
+  };
+
   return (
     <div className="space-y-4">
       <div className="ky-card p-6">
         <div className="text-[12px] text-[var(--muted)]">Status</div>
-        <div className="mt-1 text-[20px] font-extrabold">Kyndra Sunrise Ã°Å¸Å’â€¦</div>
+        <div className="mt-1 text-[20px] font-extrabold">Kyndra Sunrise</div>
         <div className="mt-2 text-[14px] text-[var(--muted)]">{status}</div>
         <div className="mt-4">
           <Link className="ky-btn inline-flex" href="/feedback">
@@ -123,6 +163,45 @@ export default function HomePage() {
                   <div className="text-[12px] text-[var(--muted)]">
                     {getCountdownLabel(birthday.birthdate, now)}
                   </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="ky-card p-6">
+        <div className="text-[12px] text-[var(--muted)]">Upcoming</div>
+        <div className="mt-1 text-[18px] font-extrabold">Events</div>
+
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <div className="text-[12px] text-[var(--muted)]">Next up</div>
+          <div className="flex items-center gap-2">
+            <Link className="ky-btn text-[12px] px-3 py-1" href="/events/new">
+              Add Event
+            </Link>
+            <Link className="ky-btn text-[12px] px-3 py-1" href="/events">
+              View All
+            </Link>
+          </div>
+        </div>
+
+        {eventsStatus ? (
+          <div className="mt-2 text-[14px] text-[var(--muted)]">{eventsStatus}</div>
+        ) : events.length === 0 ? (
+          <div className="mt-2 text-[14px] text-[var(--muted)]">
+            No upcoming events.
+          </div>
+        ) : (
+          <div className="mt-3 space-y-2">
+            {events.map((event) => (
+              <div
+                key={event.id}
+                className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] px-3 py-2"
+              >
+                <div className="text-[14px] font-semibold">{event.title}</div>
+                <div className="text-[12px] text-[var(--muted)]">
+                  {formatRange(event.starts_at, event.ends_at)}
                 </div>
               </div>
             ))}
