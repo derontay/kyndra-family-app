@@ -172,13 +172,31 @@ export default function HomePage() {
         const start = event.starts_at ? new Date(event.starts_at) : null;
         if (!start || Number.isNaN(start.getTime())) return false;
         const end = event.ends_at ? new Date(event.ends_at) : null;
-        const startsToday = start >= todayStart && start < todayEnd;
-        const ongoingToday =
-          start < todayStart && end && !Number.isNaN(end.getTime()) && end >= todayStart;
-        return startsToday || ongoingToday;
+        const endValid = end && !Number.isNaN(end.getTime());
+        const overlapsToday =
+          start < todayEnd &&
+          ((endValid && end >= todayStart) || (!endValid && start >= todayStart));
+        if (!overlapsToday) return false;
+        return endValid ? end >= nowLocal : start >= nowLocal;
       })
-      .slice(0, 3);
+      .sort((a, b) => {
+        const aTime = a.starts_at ? new Date(a.starts_at).getTime() : Number.NaN;
+        const bTime = b.starts_at ? new Date(b.starts_at).getTime() : Number.NaN;
+        const aKey = Number.isFinite(aTime) ? aTime : Number.POSITIVE_INFINITY;
+        const bKey = Number.isFinite(bTime) ? bTime : Number.POSITIVE_INFINITY;
+        return aKey - bKey;
+      });
   })();
+
+  const todayBirthdays = birthdays.filter((birthday) => {
+    if (!birthday.birthdate) return false;
+    const parsed = new Date(birthday.birthdate);
+    if (Number.isNaN(parsed.getTime())) return false;
+    return (
+      parsed.getMonth() === now.getMonth() &&
+      parsed.getDate() === now.getDate()
+    );
+  });
 
   return (
     <div className="space-y-4">
@@ -191,6 +209,75 @@ export default function HomePage() {
             Feedback
           </Link>
         </div>
+      </div>
+
+      <div className="ky-card p-6">
+        <div className="text-[12px] text-[var(--muted)]">Today</div>
+        <div className="mt-1 text-[18px] font-extrabold">Events</div>
+
+        {todayEvents.length === 0 && todayBirthdays.length === 0 ? (
+          <div className="mt-2 text-[14px] text-[var(--muted)]">
+            Nothing happening today.
+          </div>
+        ) : (
+          <div className="mt-3 space-y-2">
+            {todayBirthdays.map((birthday) => (
+              <div
+                key={`birthday-${birthday.id}`}
+                className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] px-3 py-2"
+              >
+                <div>
+                  <div className="text-[14px] font-semibold">
+                    {birthday.name}&apos;s Birthday
+                  </div>
+                  <div className="text-[12px] text-[var(--muted)]">Today</div>
+                </div>
+              </div>
+            ))}
+            {todayEvents.map((event) => {
+              const reminderLabel = getReminderLabel(
+                event.starts_at,
+                reminderMinutesByEventId[event.id],
+                nowIso
+              );
+              const nowLocal = new Date(nowIso);
+              const start = event.starts_at ? new Date(event.starts_at) : null;
+              const end = event.ends_at ? new Date(event.ends_at) : null;
+              const startValid = start && !Number.isNaN(start.getTime());
+              const endValid = end && !Number.isNaN(end.getTime());
+              const isOngoing =
+                startValid &&
+                endValid &&
+                nowLocal >= start &&
+                nowLocal < end;
+              return (
+                <div
+                  key={event.id}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] px-3 py-2"
+                >
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-[14px] font-semibold">{event.title}</div>
+                      {isOngoing ? (
+                        <span className="text-[12px] text-[var(--muted)]">
+                          NOW
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="text-[12px] text-[var(--muted)]">
+                      {formatRange(event.starts_at, event.ends_at)}
+                    </div>
+                    {reminderLabel ? (
+                      <div className="text-[12px] text-[var(--muted)]">
+                        {reminderLabel}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="ky-card p-6">
@@ -221,45 +308,6 @@ export default function HomePage() {
                 </div>
               </div>
             ))}
-          </div>
-        )}
-      </div>
-
-      <div className="ky-card p-6">
-        <div className="text-[12px] text-[var(--muted)]">Today</div>
-        <div className="mt-1 text-[18px] font-extrabold">Events</div>
-
-        {todayEvents.length === 0 ? (
-          <div className="mt-2 text-[14px] text-[var(--muted)]">
-            No events today.
-          </div>
-        ) : (
-          <div className="mt-3 space-y-2">
-            {todayEvents.map((event) => {
-              const reminderLabel = getReminderLabel(
-                event.starts_at,
-                reminderMinutesByEventId[event.id],
-                nowIso
-              );
-              return (
-                <div
-                  key={event.id}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] px-3 py-2"
-                >
-                  <div>
-                    <div className="text-[14px] font-semibold">{event.title}</div>
-                    <div className="text-[12px] text-[var(--muted)]">
-                      {formatRange(event.starts_at, event.ends_at)}
-                    </div>
-                    {reminderLabel ? (
-                      <div className="text-[12px] text-[var(--muted)]">
-                        {reminderLabel}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })}
           </div>
         )}
       </div>

@@ -29,7 +29,10 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState("");
-  const [view, setView] = useState<"upcoming" | "past">("upcoming");
+  const [view, setView] = useState<"upcoming" | "past" | "today" | "all">(
+    "upcoming"
+  );
+  const [query, setQuery] = useState("");
 
   const formatDateTime = (value: string | null) => {
     if (!value) return "Date not set";
@@ -69,9 +72,9 @@ export default function EventsPage() {
     }
 
     const { data, error: loadError } =
-      view === "upcoming"
-        ? await listEventsBySpace(supabase, spaceId)
-        : await listPastEventsBySpace(supabase, spaceId);
+      view === "past"
+        ? await listPastEventsBySpace(supabase, spaceId)
+        : await listEventsBySpace(supabase, spaceId);
     if (loadError) {
       setError(loadError.message);
       setEvents([]);
@@ -79,7 +82,7 @@ export default function EventsPage() {
       return;
     }
 
-    if (view === "upcoming") {
+    if (view !== "past") {
       const { data: reminderData, error: reminderError } =
         await listEventRemindersBySpace(supabase, spaceId);
       if (!reminderError) {
@@ -139,6 +142,61 @@ export default function EventsPage() {
     setDeletingId("");
   };
 
+  const normalizedQuery = query.trim().toLowerCase();
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(todayStart);
+  todayEnd.setDate(todayEnd.getDate() + 1);
+  const nowLocal = new Date();
+
+  const isTodayOverlapping = (event: EventRecord) => {
+    const start = event.starts_at ? new Date(event.starts_at) : null;
+    if (!start || Number.isNaN(start.getTime())) return false;
+    const end = event.ends_at ? new Date(event.ends_at) : null;
+    const endValid = end && !Number.isNaN(end.getTime());
+    return (
+      start < todayEnd &&
+      ((endValid && end >= todayStart) || (!endValid && start >= todayStart))
+    );
+  };
+
+  const isExpiredNow = (event: EventRecord) => {
+    const start = event.starts_at ? new Date(event.starts_at) : null;
+    if (!start || Number.isNaN(start.getTime())) return false;
+    const end = event.ends_at ? new Date(event.ends_at) : null;
+    const endValid = end && !Number.isNaN(end.getTime());
+    return endValid ? end < nowLocal : start < nowLocal;
+  };
+
+  const filteredEvents = events.filter((event) => {
+    if (normalizedQuery) {
+      const haystack = `${event.title ?? ""} ${event.description ?? ""}`.toLowerCase();
+      if (!haystack.includes(normalizedQuery)) return false;
+    }
+
+    if (view === "today") {
+      return isTodayOverlapping(event);
+    }
+
+    return true;
+  });
+
+  const sortedEvents = [...filteredEvents].sort((a, b) => {
+    const aTime = a.starts_at ? new Date(a.starts_at).getTime() : Number.NaN;
+    const bTime = b.starts_at ? new Date(b.starts_at).getTime() : Number.NaN;
+    const aKey = Number.isFinite(aTime)
+      ? aTime
+      : view === "past"
+        ? Number.NEGATIVE_INFINITY
+        : Number.POSITIVE_INFINITY;
+    const bKey = Number.isFinite(bTime)
+      ? bTime
+      : view === "past"
+        ? Number.NEGATIVE_INFINITY
+        : Number.POSITIVE_INFINITY;
+    return view === "past" ? bKey - aKey : aKey - bKey;
+  });
+
   return (
     <div className="space-y-4">
       <div className="ky-card p-5">
@@ -162,11 +220,29 @@ export default function EventsPage() {
             <button
               type="button"
               className={`ky-btn text-[12px] px-3 py-1 ${
+                view === "today" ? "ky-btn-primary" : "text-[var(--muted)]"
+              }`}
+              onClick={() => setView("today")}
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              className={`ky-btn text-[12px] px-3 py-1 ${
                 view === "past" ? "ky-btn-primary" : "text-[var(--muted)]"
               }`}
               onClick={() => setView("past")}
             >
               Past
+            </button>
+            <button
+              type="button"
+              className={`ky-btn text-[12px] px-3 py-1 ${
+                view === "all" ? "ky-btn-primary" : "text-[var(--muted)]"
+              }`}
+              onClick={() => setView("all")}
+            >
+              All
             </button>
           </div>
         </div>
@@ -176,25 +252,38 @@ export default function EventsPage() {
             {activeSpaceId
               ? view === "upcoming"
                 ? "Upcoming events"
+                : view === "today"
+                  ? "Today"
+                  : view === "all"
+                    ? "All events"
                 : "Past events"
               : "Select a space to continue"}
           </div>
-          <Link className="ky-btn text-[12px] px-3 py-1" href="/events/new">
-            Add Event
-          </Link>
+          <div className="flex items-center gap-2">
+            <input
+              className="w-40 rounded-xl border border-[var(--border)] bg-white/80 px-3 py-2 text-[12px] outline-none"
+              placeholder="Search events…"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+            <Link className="ky-btn text-[12px] px-3 py-1" href="/events/new">
+              Add Event
+            </Link>
+          </div>
         </div>
 
         {loading ? (
           <div className="mt-3 text-[14px] text-[var(--muted)]">Loading...</div>
         ) : error ? (
           <div className="mt-3 text-[14px] text-red-600">{error}</div>
-        ) : events.length === 0 ? (
+        ) : sortedEvents.length === 0 ? (
           <div className="mt-3 text-[14px] text-[var(--muted)]">
             No events yet.
           </div>
         ) : (
           <div className="mt-3 space-y-2">
-            {events.map((event) => {
+            {sortedEvents.map((event) => {
+              const expired = view === "today" ? isExpiredNow(event) : false;
               const reminderLabel =
                 view === "upcoming"
                   ? getReminderLabel(
@@ -202,11 +291,19 @@ export default function EventsPage() {
                       reminderMinutesByEventId[event.id],
                       nowIso
                     )
-                  : null;
+                  : view === "today" && !expired
+                    ? getReminderLabel(
+                        event.starts_at,
+                        reminderMinutesByEventId[event.id],
+                        nowIso
+                      )
+                    : null;
               return (
                 <div
                   key={event.id}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] px-3 py-2"
+                  className={`flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] px-3 py-2 ${
+                    expired ? "opacity-60" : ""
+                  }`}
                 >
                   <div>
                     <div className="text-[14px] font-semibold">{event.title}</div>
@@ -218,6 +315,9 @@ export default function EventsPage() {
                         {event.description}
                       </div>
                     ) : null}
+                    {expired ? (
+                      <div className="text-[12px] text-[var(--muted)]">Ended</div>
+                    ) : null}
                     {reminderLabel ? (
                       <div className="text-[12px] text-[var(--muted)]">
                         {reminderLabel}
@@ -227,13 +327,17 @@ export default function EventsPage() {
                   <div className="flex flex-col items-end gap-2">
                     <Link
                       href={`/events/${event.id}/edit`}
-                      className="ky-btn text-[12px] px-3 py-1"
+                      className={`ky-btn text-[12px] px-3 py-1 ${
+                        expired ? "pointer-events-none" : ""
+                      }`}
                     >
                       Edit
                     </Link>
                     <button
                       type="button"
-                      className="ky-btn text-[12px] px-3 py-1"
+                      className={`ky-btn text-[12px] px-3 py-1 ${
+                        expired ? "pointer-events-none" : ""
+                      }`}
                       onClick={() => onDelete(event.id)}
                       disabled={deletingId === event.id}
                     >
