@@ -22,6 +22,16 @@ export function listEventsBySpace(supabase: SupabaseClient, spaceId: string) {
     .order("starts_at", { ascending: true });
 }
 
+export function listPastEventsBySpace(supabase: SupabaseClient, spaceId: string) {
+  const nowIso = new Date().toISOString();
+  return supabase
+    .from("events")
+    .select(EVENT_SELECT)
+    .eq("space_id", spaceId)
+    .lt("starts_at", nowIso)
+    .order("starts_at", { ascending: false });
+}
+
 export function getEventById(
   supabase: SupabaseClient,
   spaceId: string,

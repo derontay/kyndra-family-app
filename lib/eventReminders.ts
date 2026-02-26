@@ -58,3 +58,40 @@ export function deleteEventReminderByEventId(
     .eq("space_id", spaceId)
     .eq("event_id", eventId);
 }
+
+export function getReminderLabel(
+  startsAtIso: string | null,
+  reminderMinutes: number | undefined,
+  nowIso?: string
+) {
+  if (!startsAtIso || !reminderMinutes) return null;
+
+  const startsAt = new Date(startsAtIso);
+  if (Number.isNaN(startsAt.getTime())) return null;
+
+  const now = nowIso ? new Date(nowIso) : new Date();
+  if (Number.isNaN(now.getTime())) return null;
+
+  if (now >= startsAt) return null;
+
+  const reminderAt = new Date(startsAt.getTime() - reminderMinutes * 60_000);
+
+  if (now >= reminderAt) return "⏰ due";
+
+  const diffMs = reminderAt.getTime() - now.getTime();
+  const totalMinutes = Math.ceil(diffMs / 60_000);
+
+  if (totalMinutes >= 1440) {
+    const days = Math.floor(totalMinutes / 1440);
+    const hours = Math.floor((totalMinutes % 1440) / 60);
+    return hours > 0 ? `⏰ in ${days}d ${hours}h` : `⏰ in ${days}d`;
+  }
+
+  if (totalMinutes >= 60) {
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return minutes > 0 ? `⏰ in ${hours}h ${minutes}m` : `⏰ in ${hours}h`;
+  }
+
+  return `⏰ in ${totalMinutes}m`;
+}
