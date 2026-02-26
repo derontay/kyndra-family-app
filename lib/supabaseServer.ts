@@ -10,6 +10,7 @@ type CookieToSet = {
 export async function createClient() {
   // Next 16 dynamic API can be sync or async depending on runtime.
   const cookieStore = await resolveCookieStore();
+  const cookieStoreAvailable = cookieStore !== null;
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,6 +24,7 @@ export async function createClient() {
         setAll(cookiesToSet: CookieToSet[]) {
           try {
             cookiesToSet.forEach(({ name, value, options }) => {
+              if (!cookieStoreAvailable) return;
               if (typeof cookieStore.set === "function") {
                 cookieStore.set(name, value, options);
                 return;
@@ -41,15 +43,25 @@ export async function createClient() {
   );
 }
 
-async function resolveCookieStore() {
-  const maybeStore = cookies() as any;
-  if (maybeStore && typeof maybeStore.then === "function") {
-    return await maybeStore;
+type CookieStoreLike = {
+  getAll?: () => { name: string; value: string }[];
+  set?: (name: string, value: string, options?: CookieOptions) => void;
+  setAll?: (cookies: CookieToSet[]) => void;
+  [Symbol.iterator]?: () => Iterator<{ name: string; value: string }>;
+};
+
+async function resolveCookieStore(): Promise<CookieStoreLike | null> {
+  const maybeStore = cookies() as unknown;
+  if (
+    maybeStore &&
+    typeof (maybeStore as { then?: unknown }).then === "function"
+  ) {
+    return await (maybeStore as Promise<CookieStoreLike>);
   }
-  return maybeStore;
+  return (maybeStore as CookieStoreLike) ?? null;
 }
 
-function readAllCookies(cookieStore: any): { name: string; value: string }[] {
+function readAllCookies(cookieStore: CookieStoreLike | null): { name: string; value: string }[] {
   if (!cookieStore) return [];
 
   if (typeof cookieStore.getAll === "function") {
@@ -57,7 +69,7 @@ function readAllCookies(cookieStore: any): { name: string; value: string }[] {
   }
 
   if (typeof cookieStore[Symbol.iterator] === "function") {
-    return Array.from(cookieStore);
+    return Array.from(cookieStore as Iterable<{ name: string; value: string }>);
   }
 
   // Fallback: no bulk access available
