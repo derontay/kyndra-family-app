@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { listEventsBySpace, type EventRecord } from "@/lib/events";
@@ -56,8 +56,9 @@ export default function HomePage() {
   const [reminderMinutesByEventId, setReminderMinutesByEventId] = useState<
     Record<string, number>
   >({});
+  const [profileBirthday, setProfileBirthday] = useState<string | null>(null);
   const [nowIso, setNowIso] = useState(() => new Date().toISOString());
-  const now = new Date();
+  const now = useMemo(() => new Date(nowIso), [nowIso]);
 
   useEffect(() => {
     (async () => {
@@ -67,6 +68,29 @@ export default function HomePage() {
         setStatus(
           "Supabase connected. Session: " + (data.session ? "Active" : "None")
         );
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData.user) {
+        setProfileBirthday(null);
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("birthday")
+        .eq("id", userData.user.id)
+        .maybeSingle();
+
+      if (profileError) {
+        setProfileBirthday(null);
+        return;
+      }
+
+      setProfileBirthday(profile?.birthday ?? null);
     })();
   }, []);
 
@@ -83,9 +107,10 @@ export default function HomePage() {
         return;
       }
 
+      const nowLocal = new Date();
       const list = (data ?? []) as Birthday[];
       list.sort(
-        (a, b) => getNextOccurrenceKey(a.birthdate, now) - getNextOccurrenceKey(b.birthdate, now)
+        (a, b) => getNextOccurrenceKey(a.birthdate, nowLocal) - getNextOccurrenceKey(b.birthdate, nowLocal)
       );
       setBirthdays(list);
       setBirthdaysStatus("");
@@ -154,19 +179,19 @@ export default function HomePage() {
     return `${formatDateTime(startsAt)} – ${formatDateTime(endsAt)}`;
   };
 
-  const todayEvents = (() => {
-    const nowLocal = new Date();
-    const todayStart = new Date(
-      nowLocal.getFullYear(),
-      nowLocal.getMonth(),
-      nowLocal.getDate()
-    );
-    const todayEnd = new Date(
-      nowLocal.getFullYear(),
-      nowLocal.getMonth(),
-      nowLocal.getDate() + 1
-    );
+  const todayStart = useMemo(() => {
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    return start;
+  }, [now]);
 
+  const todayEnd = useMemo(() => {
+    const end = new Date(todayStart);
+    end.setDate(end.getDate() + 1);
+    return end;
+  }, [todayStart]);
+
+  const todayEvents = useMemo(() => {
     return events
       .filter((event) => {
         const start = event.starts_at ? new Date(event.starts_at) : null;
@@ -177,7 +202,7 @@ export default function HomePage() {
           start < todayEnd &&
           ((endValid && end >= todayStart) || (!endValid && start >= todayStart));
         if (!overlapsToday) return false;
-        return endValid ? end >= nowLocal : start >= nowLocal;
+        return endValid ? end >= now : start >= now;
       })
       .sort((a, b) => {
         const aTime = a.starts_at ? new Date(a.starts_at).getTime() : Number.NaN;
@@ -186,17 +211,29 @@ export default function HomePage() {
         const bKey = Number.isFinite(bTime) ? bTime : Number.POSITIVE_INFINITY;
         return aKey - bKey;
       });
-  })();
+  }, [events, now, todayEnd, todayStart]);
 
-  const todayBirthdays = birthdays.filter((birthday) => {
-    if (!birthday.birthdate) return false;
-    const parsed = new Date(birthday.birthdate);
+  const todayBirthdays = useMemo(() => {
+    return birthdays.filter((birthday) => {
+      if (!birthday.birthdate) return false;
+      const parsed = new Date(birthday.birthdate);
+      if (Number.isNaN(parsed.getTime())) return false;
+      return (
+        parsed.getMonth() === now.getMonth() &&
+        parsed.getDate() === now.getDate()
+      );
+    });
+  }, [birthdays, now]);
+
+  const isProfileBirthdayToday = useMemo(() => {
+    if (!profileBirthday) return false;
+    const parsed = new Date(profileBirthday);
     if (Number.isNaN(parsed.getTime())) return false;
     return (
       parsed.getMonth() === now.getMonth() &&
       parsed.getDate() === now.getDate()
     );
-  });
+  }, [profileBirthday, now]);
 
   return (
     <div className="space-y-4">
@@ -221,6 +258,19 @@ export default function HomePage() {
           </div>
         ) : (
           <div className="mt-3 space-y-2">
+            {isProfileBirthdayToday ? (
+              <div
+                key="profile-birthday"
+                className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] px-3 py-2"
+              >
+                <div>
+                  <div className="text-[14px] font-semibold">
+                    🎂 Your Birthday
+                  </div>
+                  <div className="text-[12px] text-[var(--muted)]">Today</div>
+                </div>
+              </div>
+            ) : null}
             {todayBirthdays.map((birthday) => (
               <div
                 key={`birthday-${birthday.id}`}
@@ -228,7 +278,7 @@ export default function HomePage() {
               >
                 <div>
                   <div className="text-[14px] font-semibold">
-                    {birthday.name}&apos;s Birthday
+                    🎂 {birthday.name}&apos;s Birthday
                   </div>
                   <div className="text-[12px] text-[var(--muted)]">Today</div>
                 </div>

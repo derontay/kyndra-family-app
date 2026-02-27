@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabaseClient";
 import {
@@ -48,64 +48,67 @@ export default function EventsPage() {
     return `${formatDateTime(startsAt)} – ${formatDateTime(endsAt)}`;
   };
 
-  const loadEvents = async (spaceId: string) => {
-    setLoading(true);
-    setError("");
+  const loadEvents = useCallback(
+    async (spaceId: string) => {
+      setLoading(true);
+      setError("");
 
-    if (!spaceId) {
-      setEvents([]);
-      setLoading(false);
-      return;
-    }
-
-    const { data: userData, error: userError } = await supabase.auth.getUser();
-    if (userError) {
-      setError(userError.message);
-      setLoading(false);
-      return;
-    }
-
-    if (!userData.user) {
-      setError("You need to sign in to view events.");
-      setLoading(false);
-      return;
-    }
-
-    const { data, error: loadError } =
-      view === "past"
-        ? await listPastEventsBySpace(supabase, spaceId)
-        : await listEventsBySpace(supabase, spaceId);
-    if (loadError) {
-      setError(loadError.message);
-      setEvents([]);
-      setLoading(false);
-      return;
-    }
-
-    if (view !== "past") {
-      const { data: reminderData, error: reminderError } =
-        await listEventRemindersBySpace(supabase, spaceId);
-      if (!reminderError) {
-        const map: Record<string, number> = {};
-        (reminderData ?? []).forEach((reminder) => {
-          const row = reminder as EventReminderRecord;
-          if (row?.event_id) {
-            map[row.event_id] = row.remind_minutes_before;
-          }
-        });
-        setReminderMinutesByEventId(map);
+      if (!spaceId) {
+        setEvents([]);
+        setLoading(false);
+        return;
       }
-    } else {
-      setReminderMinutesByEventId({});
-    }
 
-    setEvents((data ?? []) as EventRecord[]);
-    setLoading(false);
-  };
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError) {
+        setError(userError.message);
+        setLoading(false);
+        return;
+      }
+
+      if (!userData.user) {
+        setError("You need to sign in to view events.");
+        setLoading(false);
+        return;
+      }
+
+      const { data, error: loadError } =
+        view === "past"
+          ? await listPastEventsBySpace(supabase, spaceId)
+          : await listEventsBySpace(supabase, spaceId);
+      if (loadError) {
+        setError(loadError.message);
+        setEvents([]);
+        setLoading(false);
+        return;
+      }
+
+      if (view !== "past") {
+        const { data: reminderData, error: reminderError } =
+          await listEventRemindersBySpace(supabase, spaceId);
+        if (!reminderError) {
+          const map: Record<string, number> = {};
+          (reminderData ?? []).forEach((reminder) => {
+            const row = reminder as EventReminderRecord;
+            if (row?.event_id) {
+              map[row.event_id] = row.remind_minutes_before;
+            }
+          });
+          setReminderMinutesByEventId(map);
+        }
+      } else {
+        setReminderMinutesByEventId({});
+      }
+
+      setEvents((data ?? []) as EventRecord[]);
+      setLoading(false);
+    },
+    [supabase, view]
+  );
 
   useEffect(() => {
     loadEvents(activeSpaceId);
-  }, [activeSpaceId, supabase, view]);
+  }, [activeSpaceId, loadEvents]);
 
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -142,12 +145,18 @@ export default function EventsPage() {
     setDeletingId("");
   };
 
+  const nowLocal = useMemo(() => new Date(nowIso), [nowIso]);
   const normalizedQuery = query.trim().toLowerCase();
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date(todayStart);
-  todayEnd.setDate(todayEnd.getDate() + 1);
-  const nowLocal = new Date();
+  const todayStart = useMemo(() => {
+    const start = new Date(nowLocal);
+    start.setHours(0, 0, 0, 0);
+    return start;
+  }, [nowLocal]);
+  const todayEnd = useMemo(() => {
+    const end = new Date(todayStart);
+    end.setDate(end.getDate() + 1);
+    return end;
+  }, [todayStart]);
 
   const isTodayOverlapping = (event: EventRecord) => {
     const start = event.starts_at ? new Date(event.starts_at) : null;
@@ -168,34 +177,45 @@ export default function EventsPage() {
     return endValid ? end < nowLocal : start < nowLocal;
   };
 
-  const filteredEvents = events.filter((event) => {
-    if (normalizedQuery) {
-      const haystack = `${event.title ?? ""} ${event.description ?? ""}`.toLowerCase();
-      if (!haystack.includes(normalizedQuery)) return false;
-    }
+  const filteredEvents = useMemo(() => {
+    return events.filter((event) => {
+      if (normalizedQuery) {
+        const haystack = `${event.title ?? ""} ${event.description ?? ""}`.toLowerCase();
+        if (!haystack.includes(normalizedQuery)) return false;
+      }
 
     if (view === "today") {
-      return isTodayOverlapping(event);
+      const start = event.starts_at ? new Date(event.starts_at) : null;
+      if (!start || Number.isNaN(start.getTime())) return false;
+      const end = event.ends_at ? new Date(event.ends_at) : null;
+      const endValid = end && !Number.isNaN(end.getTime());
+      return (
+        start < todayEnd &&
+        ((endValid && end >= todayStart) || (!endValid && start >= todayStart))
+      );
     }
 
-    return true;
-  });
+      return true;
+    });
+  }, [events, normalizedQuery, view, todayEnd, todayStart]);
 
-  const sortedEvents = [...filteredEvents].sort((a, b) => {
-    const aTime = a.starts_at ? new Date(a.starts_at).getTime() : Number.NaN;
-    const bTime = b.starts_at ? new Date(b.starts_at).getTime() : Number.NaN;
-    const aKey = Number.isFinite(aTime)
-      ? aTime
-      : view === "past"
-        ? Number.NEGATIVE_INFINITY
-        : Number.POSITIVE_INFINITY;
-    const bKey = Number.isFinite(bTime)
-      ? bTime
-      : view === "past"
-        ? Number.NEGATIVE_INFINITY
-        : Number.POSITIVE_INFINITY;
-    return view === "past" ? bKey - aKey : aKey - bKey;
-  });
+  const sortedEvents = useMemo(() => {
+    return [...filteredEvents].sort((a, b) => {
+      const aTime = a.starts_at ? new Date(a.starts_at).getTime() : Number.NaN;
+      const bTime = b.starts_at ? new Date(b.starts_at).getTime() : Number.NaN;
+      const aKey = Number.isFinite(aTime)
+        ? aTime
+        : view === "past"
+          ? Number.NEGATIVE_INFINITY
+          : Number.POSITIVE_INFINITY;
+      const bKey = Number.isFinite(bTime)
+        ? bTime
+        : view === "past"
+          ? Number.NEGATIVE_INFINITY
+          : Number.POSITIVE_INFINITY;
+      return view === "past" ? bKey - aKey : aKey - bKey;
+    });
+  }, [filteredEvents, view]);
 
   return (
     <div className="space-y-4">
@@ -284,6 +304,19 @@ export default function EventsPage() {
           <div className="mt-3 space-y-2">
             {sortedEvents.map((event) => {
               const expired = view === "today" ? isExpiredNow(event) : false;
+              const isPastNow = (() => {
+                const start = event.starts_at ? new Date(event.starts_at) : null;
+                if (!start || Number.isNaN(start.getTime())) return false;
+                const end = event.ends_at ? new Date(event.ends_at) : null;
+                const endValid = end && !Number.isNaN(end.getTime());
+                return endValid ? end < nowLocal : start < nowLocal;
+              })();
+              const isMuted =
+                view === "past"
+                  ? true
+                  : view === "all" || view === "today"
+                    ? isPastNow
+                    : false;
               const reminderLabel =
                 view === "upcoming"
                   ? getReminderLabel(
@@ -302,7 +335,7 @@ export default function EventsPage() {
                 <div
                   key={event.id}
                   className={`flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] px-3 py-2 ${
-                    expired ? "opacity-60" : ""
+                    isMuted ? "opacity-60" : ""
                   }`}
                 >
                   <div>
@@ -327,17 +360,13 @@ export default function EventsPage() {
                   <div className="flex flex-col items-end gap-2">
                     <Link
                       href={`/events/${event.id}/edit`}
-                      className={`ky-btn text-[12px] px-3 py-1 ${
-                        expired ? "pointer-events-none" : ""
-                      }`}
+                      className="ky-btn text-[12px] px-3 py-1"
                     >
                       Edit
                     </Link>
                     <button
                       type="button"
-                      className={`ky-btn text-[12px] px-3 py-1 ${
-                        expired ? "pointer-events-none" : ""
-                      }`}
+                      className="ky-btn text-[12px] px-3 py-1"
                       onClick={() => onDelete(event.id)}
                       disabled={deletingId === event.id}
                     >

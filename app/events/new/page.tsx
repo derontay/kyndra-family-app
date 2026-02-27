@@ -4,7 +4,7 @@ import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabaseClient";
-import { createEvent } from "@/lib/events";
+import { upsertEventReminder } from "@/lib/eventReminders";
 import { useSpace } from "@/components/spaces/SpaceContext";
 
 export default function NewEventPage() {
@@ -18,6 +18,7 @@ export default function NewEventPage() {
   const [endsAt, setEndsAt] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [reminderMinutes, setReminderMinutes] = useState<number>(0);
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -59,18 +60,36 @@ export default function NewEventPage() {
       return parsed.toISOString();
     };
 
-    const { error: insertError } = await createEvent(supabase, {
-      space_id: activeSpaceId,
-      title: trimmedTitle,
-      description: description.trim() ? description.trim() : null,
-      starts_at: toIsoOrNull(startsAt),
-      ends_at: toIsoOrNull(endsAt),
-    });
+    const { data: insertData, error: insertError } = await supabase
+      .from("events")
+      .insert({
+        space_id: activeSpaceId,
+        title: trimmedTitle,
+        description: description.trim() ? description.trim() : null,
+        starts_at: toIsoOrNull(startsAt),
+        ends_at: toIsoOrNull(endsAt),
+      })
+      .select("id")
+      .single();
 
     if (insertError) {
       setError(insertError.message);
       setSaving(false);
       return;
+    }
+
+    const createdEventId = insertData?.id ?? null;
+    if (createdEventId && reminderMinutes > 0) {
+      const { error: reminderError } = await upsertEventReminder(supabase, {
+        event_id: createdEventId,
+        space_id: activeSpaceId,
+        remind_minutes_before: reminderMinutes,
+      });
+      if (reminderError) {
+        setError("Event created, but reminder failed: " + reminderError.message);
+        setSaving(false);
+        return;
+      }
     }
 
     router.push("/events");
@@ -132,6 +151,21 @@ export default function NewEventPage() {
               value={description}
               onChange={(event) => setDescription(event.target.value)}
             />
+          </div>
+
+          <div>
+            <label className="text-[12px] text-[var(--muted)]">Remind me</label>
+            <select
+              className="mt-1 w-full rounded-xl border border-[var(--border)] bg-white/80 px-3 py-2 text-[14px] outline-none"
+              value={reminderMinutes}
+              onChange={(event) => setReminderMinutes(Number(event.target.value))}
+            >
+              <option value={0}>None</option>
+              <option value={15}>15 minutes before</option>
+              <option value={30}>30 minutes before</option>
+              <option value={60}>60 minutes before</option>
+              <option value={120}>120 minutes before</option>
+            </select>
           </div>
 
           <div className="flex items-center gap-2">
